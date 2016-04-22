@@ -276,6 +276,14 @@ bool GT_Command( Client @client, const String &cmdString, const String &argsStri
             client.printMessage( "Callvote " + votename + " requires at least one argument\n" );
             return false;
           }
+        } else if ( votename == "skip" )
+        {
+          String voteArg = argsString.getToken(1);
+          if ( voteArg.len() < 1 )
+          {
+            client.printMessage( "Callvote " + votename + " requires at least one argument\n" );
+            return false;
+          }
         }
         else
         {
@@ -294,6 +302,19 @@ bool GT_Command( Client @client, const String &cmdString, const String &argsStri
           String voteArg = argsString.getToken(1);
 
           voted_seed = voteArg;
+          if ( match.getState() == MATCH_STATE_PLAYTIME )
+          {
+            infini_round.NewRoundState(IR_ROUNDSTATE_POSTROUND);
+          } else if ( match.getState() == MATCH_STATE_WARMUP )
+          {
+            infini_round.ResetMap();
+          }
+        }
+
+        if ( votename == "skip" )
+        {
+          String voteArg = argsString.getToken(1);
+
           if ( match.getState() == MATCH_STATE_PLAYTIME )
           {
             infini_round.NewRoundState(IR_ROUNDSTATE_POSTROUND);
@@ -627,10 +648,11 @@ void GT_InitGametype()
     G_RegisterCommand( "gametype" );
     G_RegisterCommand( "racerestart" );
     G_RegisterCommand( "kill" );
-    G_RegisterCommand( "newmap" );
+    //G_RegisterCommand( "newmap" );
 
     // add votes
-    G_RegisterCallvote( "seed", "<seed>", "string", "Changes to seed" );
+    //G_RegisterCallvote( "seed", "<seed>", "string", "Changes to seed" );
+    G_RegisterCallvote( "skip", "map", "string", "skips map" );
 
     G_Print( "Gametype '" + gametype.title + "' initialized\n" );
 }

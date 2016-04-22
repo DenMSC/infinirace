@@ -465,10 +465,10 @@ void Restart()
     seed = voted_seed;
 
   setSeed(seed);
-  G_PrintMsg(null, "seed : "+seed+"\n");
+  G_Print("seed : "+seed+"\n");
   uint length = randint(5, pieces.length);
   //length = pieces.length;
-  G_PrintMsg(null, "length : "+length+", max: "+pieces.length+"\n");
+  //G_PrintMsg(null, "length : "+length+", max: "+pieces.length+"\n");
   Path@ path = @Path(length,pieces,@end_piece,@end_trigger);
   /*while( true ) {
     if ( path.Generate() )
@@ -494,7 +494,7 @@ void Restart()
   }
   kill_trigger.setSize(Vec3(-10000,-10000,lowest-128), Vec3(10000,10000,lowest));
   kill_trigger.linkEntity();
-  G_Print("lowest: "+lowest+"\n");
+  //G_Print("lowest: "+lowest+"\n");
   //ListEntities();
 }
 
