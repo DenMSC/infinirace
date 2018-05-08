@@ -10,6 +10,9 @@ uint path_length = 10;
 uint lastGen;
 Cvar infinirace_length("infinirace_length", "1", 0);
 
+uint pathAttempts = 0;
+uint maxPathAttempts = 100;
+
 class CollisionBox
 {
   Vec3 mins, maxs;
@@ -352,6 +355,7 @@ class Path
         if ( piece.TestCollision(@this.path, new_pos, angles, ignore) )
         {
           //G_Print("add "+piece.ent.targetname+"to path\n");
+          //G_AppendToFile( "infinitest.txt", "add "+piece.ent.targetname+"to path\n");
           this.path.push_back(@piece);
           piece.Place(new_pos, angles);
 
@@ -361,9 +365,17 @@ class Path
           {
             return true;
           } else {
+            pathAttempts++;
+            if ( pathAttempts > maxPathAttempts )
+            {
+              G_Print( "Giving up after " + maxPathAttempts + " fails\n" );
+              this.length = 0;
+              return this.newGenerate(new_pool, new_pos, new_angles, piece.end_type);
+            }
             this.path.removeLast();
             piece.ResetPos();
             //G_Print("remove "+piece.ent.targetname+"from path\n");
+            //G_AppendToFile( "infinitest.txt", "remove "+piece.ent.targetname+"from path\n");
           }
         }
       }
@@ -427,7 +439,7 @@ void INFINI_Init()
   kill_trigger.linkEntity();
 
   String seed = String(random());
-  seed = "bsl";
+  //seed = "bsl";
   setSeed(seed);
   //G_Print("seed : "+seed+"\n");
 
@@ -461,19 +473,22 @@ void kill_Touch(Entity @ent, Entity @other, const Vec3 planeNormal, int surfFlag
 void Restart()
 {
   String seed = String(random());
+  //seed = "0.911893"; //crash
+  //seed = "0.000976592"; //buggy
   if ( voted_seed != "" )
     seed = voted_seed;
 
   setSeed(seed);
-  G_Print("seed : "+seed+"\n");
   uint length = randint(5, pieces.length);
   //length = pieces.length;
-  //G_PrintMsg(null, "length : "+length+", max: "+pieces.length+"\n");
+  G_Print("seed : "+seed+", length : "+length+", max: "+pieces.length+"\n");
   Path@ path = @Path(length,pieces,@end_piece,@end_trigger);
   /*while( true ) {
     if ( path.Generate() )
       break;
   }*/
+  //G_WriteFile( "infinitest.txt", "" );
+  pathAttempts = 0;
   path.newGenerate( pieces, Vec3(0,0,2048), Vec3(0,0,0) );
   lastGen = levelTime;
 

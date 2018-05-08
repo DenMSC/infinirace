@@ -458,6 +458,14 @@ void GT_PlayerRespawn( Entity @ent, int old_team, int new_team )
     else
         ent.client.selectWeapon( -1 ); // auto-select best weapon in the inventory
 
+    // freeze player if preround
+    if ( match.getState() == MATCH_STATE_PLAYTIME && infini_round.state < IR_ROUNDSTATE_ROUND )
+    {
+      ent.client.pmoveMaxSpeed = 0;
+      ent.client.pmoveDashSpeed = 0;
+      ent.client.pmoveFeatures = ent.client.pmoveFeatures & ~( PMFEAT_WALK | PMFEAT_JUMP | PMFEAT_DASH | PMFEAT_WALLJUMP );
+    }
+
     // add a teleportation effect
     ent.respawnEffect();
     ent.client.setRaceTime(0,1000);
