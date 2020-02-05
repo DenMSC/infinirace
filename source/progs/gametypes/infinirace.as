@@ -23,6 +23,9 @@ const int IR_ROUNDSTATE_ROUND = 2;
 const int IR_ROUNDSTATE_ROUNDFINISHED = 3;
 const int IR_ROUNDSTATE_POSTROUND = 4;
 
+/// A variable for time correction
+int hh;
+
 String voted_seed = "";
 
 IR_Round infini_round;
@@ -84,6 +87,7 @@ class IR_Round
     if ( match.getState() == MATCH_STATE_WARMUP )
     {
       this.ResetMap();
+      int ( hh = 0 );
       return;
     }
 
@@ -118,6 +122,7 @@ class IR_Round
       }
     }
     this.finishReached = false;
+    int ( hh = 0 );
   }
 
   void NewRoundState( int newState )
@@ -491,6 +496,29 @@ void GT_ThinkRules()
 
     // set all clients race stats
     Client @client;
+	
+	/// Keep the timer at 0 if there are no players in-game
+	/// It prevents the timer from hitting the 16-bit integer limit
+	/// unless someone stays in-game for an extended period of time.
+	// Calculates how many players are in-game
+    Team @team;
+    int[] alive( GS_MAX_TEAMS );
+    alive[TEAM_PLAYERS] = 0;
+    for ( int t = TEAM_PLAYERS; t < GS_MAX_TEAMS; t++ )
+    {
+        @team = @G_GetTeam( t );
+        for ( int i = 0; @team.ent( i ) != null; i++ )
+        {
+            if ( !team.ent( i ).isGhosting() )
+                alive[t]++;
+        }
+    }
+
+	// If there are no players in-game, keep the timer at 0
+	if ( alive[TEAM_PLAYERS] == 0 )
+	{
+		int ( hh = levelTime - lastGen );
+	}
 
     for ( int i = 0; i < maxClients; i++ )
     {
@@ -501,7 +529,7 @@ void GT_ThinkRules()
         // disable gunblade autoattack
         client.pmoveFeatures = client.pmoveFeatures & ~PMFEAT_GUNBLADEAUTOATTACK;
         if ( match.getState() == MATCH_STATE_WARMUP )
-          client.setHUDStat( STAT_TIME_SELF, ( levelTime - lastGen ) / 100 );
+          client.setHUDStat( STAT_TIME_SELF, ( levelTime - hh - lastGen ) / 100 );
         if ( infini_round.state == IR_ROUNDSTATE_ROUND )
           client.setHUDStat( STAT_TIME_SELF, ( levelTime - infini_round.roundStateStartTime ) / 100 );
     }
@@ -571,7 +599,7 @@ void GT_SpawnGametype()
 void GT_InitGametype()
 {
     gametype.title = "InfiniRace";
-    gametype.version = "1.02";
+    gametype.version = "1.03";
     gametype.author = "Warsow Development Team";
 
     // if the gametype doesn't have a config file, create it
