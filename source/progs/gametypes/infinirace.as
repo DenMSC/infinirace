@@ -23,8 +23,13 @@ const int IR_ROUNDSTATE_ROUND = 2;
 const int IR_ROUNDSTATE_ROUNDFINISHED = 3;
 const int IR_ROUNDSTATE_POSTROUND = 4;
 
+Cvar autoskip ( "g_autoskip", "5", CVAR_ARCHIVE );
+
 /// A variable for time correction
 int hh;
+
+/// This variable prevents bugs when the game autoskips a level during normal game
+int lock;
 
 String voted_seed = "";
 
@@ -143,6 +148,9 @@ class IR_Round
         break;
       case IR_ROUNDSTATE_PREROUND:
         {
+		  // A variable used to prevent autoskip from getting stuck
+		  // It's reset to 0 here after the new map generates during the match
+		  lock = 0;
           this.roundStateEndTime = levelTime + 5000;
           this.countDown = 4;
 
@@ -290,6 +298,15 @@ bool GT_Command( Client @client, const String &cmdString, const String &argsStri
             return false;
           }
         }
+		else if ( votename == "autoskip" )
+		{
+          String voteArg = argsString.getToken(1);
+          if ( voteArg.len() < 1 || voteArg < 0 || voteArg > 30 )
+          {
+            client.printMessage( "Callvote " + votename + " requires at least one argument in range 0-30\n" );
+            return false;
+          }
+		}
         else
         {
             client.printMessage( "Unknown callvote " + votename + "\n" );
@@ -328,6 +345,11 @@ bool GT_Command( Client @client, const String &cmdString, const String &argsStri
             infini_round.ResetMap();
           }
         }
+		if ( votename == "autoskip" )
+		{
+		int arg = argsString.getToken( 1 );
+		autoskip.set( arg );
+		}
 
         return true;
     }
@@ -520,6 +542,33 @@ void GT_ThinkRules()
 		int ( hh = levelTime - lastGen );
 	}
 
+	/// Skip a map if noone finishes a course in x minutes
+	/// A check is done if the game is in warmup or not.
+	/// This is to prevent glitches caused by the delay
+	/// between map skip and generation during the match.
+	// This integer is here to prevent Signed/Unsigned mismatch warning
+	int timepassed = levelTime - infini_round.roundStateStartTime;
+
+	if ( match.getState() == MATCH_STATE_PLAYTIME )
+	{
+		if ( timepassed > autoskip.get_integer() * 60000 && autoskip.get_integer() > 0 && lock == 0)
+		{
+			infini_round.NewRoundState(IR_ROUNDSTATE_POSTROUND);
+			// Lock variable makes sure the code doesn't get stuck in loop
+			// before the game actually generates a new map during the match
+			lock = 1;
+			G_PrintMsg(null, S_COLOR_WHITE + "The maximum map time has expired, skipping map...\n");
+		}
+	}
+	else
+	{
+		if ( levelTime - hh - lastGen > autoskip.get_integer() * 60000 && autoskip.get_integer() > 0 )
+		{
+			infini_round.ResetMap();
+			G_PrintMsg(null, S_COLOR_WHITE + "The maximum map time has expired, skipping map...\n");
+		}
+	}
+		
     for ( int i = 0; i < maxClients; i++ )
     {
         @client = G_GetClient( i );
@@ -599,7 +648,7 @@ void GT_SpawnGametype()
 void GT_InitGametype()
 {
     gametype.title = "InfiniRace";
-    gametype.version = "1.03";
+    gametype.version = "1.05";
     gametype.author = "Warsow Development Team";
 
     // if the gametype doesn't have a config file, create it
@@ -689,6 +738,7 @@ void GT_InitGametype()
     // add votes
     //G_RegisterCallvote( "seed", "<seed>", "string", "Changes to seed" );
     G_RegisterCallvote( "skip", "map", "string", "skips map" );
+    G_RegisterCallvote( "autoskip", "<0-30>", "integer", "Autoskips maps that haven't been completed in x minutes. 0 to disable.\n" + "Current: " + autoskip.get_integer() + " minutes\n");
 
     G_Print( "Gametype '" + gametype.title + "' initialized\n" );
 }
