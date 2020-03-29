@@ -509,7 +509,6 @@ void GT_ThinkRules()
 
     GENERIC_Think();
 
-    INFINI_Think();
     infini_round.Think();
 
     if ( match.getState() == MATCH_STATE_PLAYTIME )

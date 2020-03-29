@@ -1,39 +1,3 @@
-void RotateBBoxOld( Vec3&in mins, Vec3&in maxs, Vec3&out outmins, Vec3&out outmaxs, Vec3 angle )
-{
-  Vec3 posmins = Rotate(mins, angle);
-  Vec3 posmaxs = Rotate(maxs, angle);
-  Vec3 negmins = Rotate(mins, angle*-1);
-  Vec3 negmaxs = Rotate(maxs, angle*-1);
-  outmins = Vec3( absmax(posmins.x,negmins.x), absmax(posmins.y,negmins.y), absmax(posmins.z,negmins.z) );
-  outmaxs = Vec3( absmax(posmaxs.x,negmaxs.x), absmax(posmaxs.y,negmaxs.y), absmax(posmaxs.z,negmaxs.z) );
-}
-
-void RotateBBox( Vec3&in mins, Vec3&in maxs, Vec3&out outmins, Vec3&out outmaxs, Vec3 angle )
-{
-  Vec3 halfsize = (maxs-mins)*0.5;
-  Vec3 offset = (maxs+mins)*0.5;
-  Vec3 center = Vec3(0);
-
-  Vec3 dirx,diry,dirz;
-  angle.angleVectors(dirx,diry,dirz);
-  Vec3 rotated = Vec3(
-    abs(dirx.x*halfsize.x) + abs(diry.x*halfsize.y) + abs(dirz.x*halfsize.z),
-    abs(dirx.y*halfsize.x) + abs(diry.y*halfsize.y) + abs(dirz.y*halfsize.z),
-    abs(dirx.z*halfsize.x) + abs(diry.y*halfsize.y) + abs(dirz.z*halfsize.z)
-  );
-
-  outmins = center - rotated;
-  outmaxs = center + rotated;
-}
-
-float absmax(float a, float b)
-{
-  if ( abs(a) > abs(b) )
-    return a;
-  else
-    return b;
-}
-
 Vec3 Rotate(Vec3 v, Vec3 angle)
 {
   v = RotateX(v, angle.x);
@@ -70,16 +34,6 @@ Vec3 RotateZ(Vec3 v, float a)
 		v.y,
 		-v.x*sin(a)+v.z*cos(a)
 	);
-}
-
-void ListEntities()
-{
-  G_Print("total entities: "+numEntities+"\n");
-  for ( int i = 0; i < numEntities; i++ )
-  {
-    Entity@ ent = @G_GetEntity(i);
-    G_Print("Ent#"+i+" classname: "+ent.classname+" targetname: "+ent.targetname+"\n");
-  }
 }
 
 void setSeed(String& seed)

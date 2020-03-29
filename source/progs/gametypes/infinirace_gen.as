@@ -1,89 +1,12 @@
 Piece@[] pieces;
-Piece@ last_piece;
 Piece@ end_piece;
 Piece@ end_trigger;
-
 Entity@ kill_trigger;
-uint nextThink;
-uint path_length = 10;
 
 uint lastGen;
-Cvar infinirace_length("infinirace_length", "1", 0);
 
 uint pathAttempts = 0;
 uint maxPathAttempts = 100;
-
-class CollisionBox
-{
-  Vec3 mins, maxs;
-  Vec3 origin;
-  Vec3 angles;
-
-  CollisionBox()
-  {
-    this.mins = Vec3(0);
-    this.maxs = Vec3(0);
-    this.origin = Vec3(0);
-  }
-  CollisionBox(Entity@ ent)
-  {
-    this.Update(@ent);
-  }
-  ~CollisionBox() {}
-
-  void Update(Entity@ ent)
-  {
-    Vec3 mins,maxs;
-    ent.getSize(mins, maxs);
-    mins += Vec3(1,1,1);
-    maxs -= Vec3(1,1,1);
-
-    this.mins = mins;
-    this.maxs = maxs;
-
-    this.origin = ent.origin;
-    this.angles = ent.angles;
-  }
-
-  Vec3 GetWorldMins()
-  {
-    return this.GetWorldMins(this.origin, this.angles);
-  }
-  Vec3 GetWorldMins(Vec3 position, Vec3 angles)
-  {
-    Vec3 mins, maxs;
-    RotateBBox(this.mins, this.maxs, mins, maxs, angles);
-    mins -= Vec3(0,0,128);
-    return mins + position;
-  }
-
-  Vec3 GetWorldMaxs()
-  {
-    return this.GetWorldMaxs(this.origin, this.angles);
-  }
-  Vec3 GetWorldMaxs(Vec3 position, Vec3 angles)
-  {
-    Vec3 mins, maxs;
-    RotateBBox(this.mins, this.maxs, mins, maxs, angles);
-    maxs += Vec3(0,0,128);
-    return maxs + position;
-  }
-
-  bool CheckCollision(CollisionBox@ box, Vec3 position, Vec3 angles)
-  {
-    Vec3 amins = this.GetWorldMins(position, angles);
-    Vec3 amaxs = this.GetWorldMaxs(position, angles);
-
-    Vec3 bmins = box.GetWorldMins();
-    Vec3 bmaxs = box.GetWorldMaxs();
-
-    return (
-      (amins.x <= bmaxs.x && amaxs.x >= bmins.x ) &&
-      (amins.y <= bmaxs.y && amaxs.y >= bmins.y ) &&
-      (amins.z <= bmaxs.z && amaxs.z >= bmins.z )
-    );
-  }
-}
 
 Vec3 colorToVec3(int rgb)
 {
@@ -103,7 +26,6 @@ class Piece
   Entity@ ent;
   Vec3 angle;
   Vec3 delta;
-  CollisionBox@ box;
   int start_type;
   int end_type;
 
@@ -127,8 +49,6 @@ class Piece
     this.end_type = int(type.y);
     ent.light = 0;
     ent.angles = Vec3(0,0,0);
-
-    @this.box = @CollisionBox(@ent);
   }
 
   ~Piece()
@@ -142,26 +62,6 @@ class Piece
     this.ent.angles = Vec3(0, 0, 0);
     this.ent.svflags |= SVF_NOCLIENT;
     this.ent.linkEntity();
-    this.box.Update(@this.ent);
-  }
-
-  bool TestCollisionNew(Piece@[]@ pieces, Vec3 position, Vec3 angles, int ignore = -1)
-  {
-    for ( uint i = 0; i < pieces.length; i++ )
-    {
-      if ( ignore != -1 )
-      {
-        if ( i == uint(ignore) )
-          continue;
-      }
-
-      Piece@ piece = @pieces[i];
-      if ( this.box.CheckCollision( piece.box, position, angles ) )
-      {
-        return false;
-      }
-    }
-    return true;
   }
 
   bool TestCollision(Piece@[]@ pieces, Vec3 position, Vec3 angles, int ignore = -1)
@@ -172,14 +72,12 @@ class Piece
     mins += Vec3(1,1,1);
     maxs -= Vec3(1,1,1);
 
-    RotateBBox( mins, maxs, mins, maxs, angles );
-
     if ( ignore != -1 )
       ignore = pieces[ignore].ent.entNum;
 
     if ( tr.doTrace( position-Vec3(0,0,128), mins, maxs, position+Vec3(0,0,128), ignore, MASK_SOLID ) )
       return false;
-    if ( tr.startSolid || tr.allSolid )
+    if ( tr.startSolid || tr.allSolid || tr.fraction < 1.0f )
       return false;
 
     return true;
@@ -191,11 +89,9 @@ class Piece
     this.ent.angles = angles;
     this.ent.solid = SOLID_YES;
     this.ent.svflags &= ~SVF_NOCLIENT;
-    //this.ent.setupModel( "*" + this.ent.modelindex ); // recalculate model clipping
     this.ent.clipMask = MASK_SOLID;
     this.ent.solid = SOLID_YES;
     this.ent.linkEntity();
-    this.box.Update(@this.ent);
   }
 }
 
@@ -253,78 +149,8 @@ class Path
     return @piece;
   }
 
-/*  bool FindPiece(bool last = false)
+  bool Generate(Piece@[] pool, Vec3 pos, Vec3 angles, int type = 0)
   {
-    this.ShufflePool();
-    Piece@ rand_piece;
-    while (true) {
-      @rand_piece = @this.NextPiece();
-      if ( @rand_piece == null )
-      {
-        //end of pool, nothing found
-        Vec3 end_pos = this.path_pos + Rotate(this.end_piece.delta, this.path_angle);
-
-        this.end_piece.Place(end_pos, this.path_angle);
-        this.end_trigger.Place(end_pos, this.path_angle);
-        G_PrintMsg(null,"Failed to reach desired length, end might clip.\n");
-        break;
-      }
-
-      Vec3 new_pos = this.path_pos + Rotate(rand_piece.delta, this.path_angle);
-      Vec3 new_angle = this.path_angle + rand_piece.angle;
-
-      int ignore = this.path.length-1;
-
-      if ( rand_piece.TestCollision(@this.path, new_pos, this.path_angle, ignore ) )
-      {
-        if ( last )
-        {
-          Vec3 end_angle = this.path_angle + rand_piece.angle;
-          Vec3 end_pos = new_pos + Rotate(this.end_piece.delta, end_angle);
-
-          if ( this.end_piece.TestCollision(@this.path, end_pos, end_angle) )
-          {
-            this.end_piece.Place(end_pos, new_angle);
-            this.end_trigger.Place(end_pos, new_angle);
-          } else {
-            continue;
-          }
-        }
-
-        // remove from pool and add to path
-        rand_piece.Place(new_pos, this.path_angle);
-
-        this.pool.removeAt(this.pool_index-1);
-        this.pool_index--;
-        this.path.push_back(@rand_piece);
-
-        this.path_angle = new_angle;
-        this.path_pos = new_pos;
-        return true;
-      } else {
-        // move on to next piece
-        G_PrintMsg(null, "Collided at "+this.path.length+": "+rand_piece.ent.targetname+"\n");
-      }
-    }
-    return false;
-  }
-  bool PopPiece(Piece@ piece)
-  {
-    return true;
-  }
-  bool Generate()
-  {
-    while ( this.path.length < this.length )
-    {
-      if ( !this.FindPiece( this.path.length == this.length-1 ) )
-        return false;
-    }
-    return false;
-  }
-*/
-  bool newGenerate(Piece@[] pool, Vec3 pos, Vec3 angles, int type = 0)
-  {
-    //G_Print("curr type: " + type + "\n");
     if ( this.path.length >= this.length )
     {
       Vec3 new_pos = pos + Rotate(this.end_piece.delta, angles);
@@ -354,14 +180,12 @@ class Path
       {
         if ( piece.TestCollision(@this.path, new_pos, angles, ignore) )
         {
-          //G_Print("add "+piece.ent.targetname+"to path\n");
-          //G_AppendToFile( "infinitest.txt", "add "+piece.ent.targetname+"to path\n");
           this.path.push_back(@piece);
           piece.Place(new_pos, angles);
 
           Piece@[] new_pool = rand_pool;
           new_pool.removeAt(i);
-          if ( this.newGenerate(new_pool, new_pos, new_angles, piece.end_type) )
+          if ( this.Generate(new_pool, new_pos, new_angles, piece.end_type) )
           {
             return true;
           } else {
@@ -370,12 +194,10 @@ class Path
             {
               G_Print( "Giving up after " + maxPathAttempts + " fails\n" );
               this.length = 0;
-              return this.newGenerate(new_pool, new_pos, new_angles, piece.end_type);
+              return this.Generate(new_pool, new_pos, new_angles, piece.end_type);
             }
             this.path.removeLast();
             piece.ResetPos();
-            //G_Print("remove "+piece.ent.targetname+"from path\n");
-            //G_AppendToFile( "infinitest.txt", "remove "+piece.ent.targetname+"from path\n");
           }
         }
       }
@@ -414,7 +236,6 @@ void INFINI_Init()
         end.modelindex = ent.modelindex;
         end.origin = ent.origin;
         end.angles = ent.angles;
-        //end.type = ET_PUSH_TRIGGER;
         end.solid = SOLID_YES;
         end.setupModel("*"+ent.modelindex);
         @end.touch = end_Touch;
@@ -433,25 +254,18 @@ void INFINI_Init()
   kill_trigger.origin = Vec3(0,0,0);
   kill_trigger.setSize(Vec3(-10000,-10000,-128), Vec3(10000,10000,0));
   kill_trigger.solid = SOLID_TRIGGER;
-  //kill_trigger.clipMask = MASK_PLAYERSOLID;
   @kill_trigger.touch = kill_Touch;
   kill_trigger.svflags &= ~SVF_NOCLIENT;
   kill_trigger.linkEntity();
 
   String seed = String(random());
-  //seed = "bsl";
   setSeed(seed);
-  //G_Print("seed : "+seed+"\n");
 
   Restart();
-
-  /*Path@ path = @Path(infinirace_length.integer,pieces,@end_piece,@end_trigger);
-  path.Generate();*/
 }
 
 void end_Touch(Entity @ent, Entity @other, const Vec3 planeNormal, int surfFlags)
 {
-  //G_PrintMsg(null,"finish"+surfFlags+"\n");
   if ( @other.client == null )
     return;
 
@@ -469,7 +283,6 @@ void kill_Touch(Entity @ent, Entity @other, const Vec3 planeNormal, int surfFlag
   other.client.respawn(false);
 }
 
-
 void Restart()
 {
   String seed = String(random());
@@ -480,18 +293,11 @@ void Restart()
 
   setSeed(seed);
   uint length = randint(5, pieces.length);
-  //length = pieces.length;
   G_Print("seed : "+seed+", length : "+length+", max: "+pieces.length+"\n");
   Path@ path = @Path(length,pieces,@end_piece,@end_trigger);
-  /*while( true ) {
-    if ( path.Generate() )
-      break;
-  }*/
-  //G_WriteFile( "infinitest.txt", "" );
   pathAttempts = 0;
-  path.newGenerate( pieces, Vec3(0,0,2048), Vec3(0,0,0) );
+  path.Generate( pieces, Vec3(0,0,2048), Vec3(0,0,0) );
   lastGen = levelTime;
-
 
   float lowest = 1024;
   for ( uint i = 0; i < path.path.length; i++ )
@@ -509,37 +315,4 @@ void Restart()
   }
   kill_trigger.setSize(Vec3(-10000,-10000,lowest-128), Vec3(10000,10000,lowest));
   kill_trigger.linkEntity();
-  //G_Print("lowest: "+lowest+"\n");
-  //ListEntities();
-}
-
-void INFINI_Think()
-{
-  /*for ( uint i = 0; i < pieces.length; i++ )
-  {
-    Piece@ ent = @pieces[i];
-    ent.ent.light = COLOR_RGBA(random()*255,random()*255,random()*255,255);
-  }*/
-
-  /*for ( int j = 0; j < maxClients; j++ )
-  {
-    Client@ client = G_GetClient(j);
-    if ( @client == null )
-      continue;
-    Entity@ clientent = @client.getEnt();
-    if ( @clientent.groundEntity == null )
-      continue;
-    if ( @clientent.groundEntity == @end_piece.ent )
-    {
-      //infini_round.Finish(@client);
-      break;
-    }
-    G_CenterPrintMsg(clientent, "standing on: " + clientent.groundEntity.targetname);
-  }*/
-
-  /*if ( levelTime >= nextThink )
-  {
-    Restart();
-    nextThink = levelTime + 500;
-  }*/
 }
