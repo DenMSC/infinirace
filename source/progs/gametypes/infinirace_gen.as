@@ -109,7 +109,7 @@ class Path
   Path(uint length, Piece@[] pool, Piece@ end_piece, Piece@ end_trigger)
   {
     this.length = length;
-    for ( int i = 0; i < int(pool.length); i++ )
+    for ( int i = 0; i < int(pool.length()); i++ )
     {
       Piece@ piece = @pool[i];
       piece.ResetPos();
@@ -125,9 +125,9 @@ class Path
 
   void ShufflePool()
   {
-    if ( this.pool.length == 0 )
+    if ( this.pool.length() == 0 )
       return;
-    for ( uint i = this.pool.length - 1; i > 0; i-- )
+    for ( uint i = this.pool.length() - 1; i > 0; i-- )
     {
       uint j = randint(0,i+1);
       Piece@ temp_piece = @this.pool[i];
@@ -139,7 +139,7 @@ class Path
 
   Piece@ NextPiece()
   {
-    if ( this.pool_index >= this.pool.length)
+    if ( this.pool_index >= this.pool.length())
     {
       return null;
     }
@@ -151,11 +151,11 @@ class Path
 
   bool Generate(Piece@[] pool, Vec3 pos, Vec3 angles, int type = 0)
   {
-    if ( this.path.length >= this.length )
+    if ( this.path.length() >= this.length )
     {
       Vec3 new_pos = pos + Rotate(this.end_piece.delta, angles);
       Vec3 new_angles = angles + this.end_piece.angle;
-      int ignore = this.path.length-1;
+      int ignore = this.path.length()-1;
 
       if ( this.end_piece.TestCollision(@this.path, new_pos, angles, ignore) )
       {
@@ -168,13 +168,13 @@ class Path
     }
 
     Piece@[] rand_pool = Shuffle(pool);
-    for ( uint i = 0; i < rand_pool.length; i++ )
+    for ( uint i = 0; i < rand_pool.length(); i++ )
     {
       Piece@ piece = @rand_pool[i];
       Vec3 new_pos = pos + Rotate(piece.delta, angles);
       Vec3 new_angles = angles + piece.angle;
 
-      int ignore = this.path.length-1;
+      int ignore = this.path.length()-1;
 
       if ( piece.start_type == type )
       {
@@ -209,7 +209,7 @@ class Path
 Piece@[] Shuffle(Piece@[] pieces)
 {
   Piece@[] shuffled = pieces;
-  for ( uint i = shuffled.length - 1; i > 0; i-- )
+  for ( uint i = shuffled.length() - 1; i > 0; i-- )
   {
     uint j = randint(0,i+1);
     Piece@ temp_piece = @shuffled[i];
@@ -292,15 +292,15 @@ void Restart()
     seed = voted_seed;
 
   setSeed(seed);
-  uint length = randint(5, pieces.length);
-  G_Print("seed : "+seed+", length : "+length+", max: "+pieces.length+"\n");
+  uint length = randint(5, pieces.length());
+  G_Print("seed : "+seed+", length : "+length+", max: "+pieces.length()+"\n");
   Path@ path = @Path(length,pieces,@end_piece,@end_trigger);
   pathAttempts = 0;
   path.Generate( pieces, Vec3(0,0,2048), Vec3(0,0,0) );
   lastGen = levelTime;
 
   float lowest = 1024;
-  for ( uint i = 0; i < path.path.length; i++ )
+  for ( uint i = 0; i < path.path.length(); i++ )
   {
     Entity@ curr = @path.path[i].ent;
     float height = curr.origin.z;
